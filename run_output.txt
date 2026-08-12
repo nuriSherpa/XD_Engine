@@ -1,0 +1,97 @@
+warning: unused variable: `vertex_buffer`
+   --> src/main.rs:119:5
+    |
+119 | let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    |     ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_vertex_buffer`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `index_buffer`
+   --> src/main.rs:125:5
+    |
+125 | let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_index_buffer`
+
+warning: unused variable: `num_indices`
+   --> src/main.rs:131:5
+    |
+131 | let num_indices = indices.len() as u32;
+    |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_num_indices`
+
+warning: unused variable: `id`
+   --> src/main.rs:142:58
+    |
+142 | fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+    |                                                          ^^ help: if this is intentional, prefix it with an underscore: `_id`
+
+warning: `my_engine` (bin "my_engine") generated 4 warnings (run `cargo fix --bin "my_engine" -p my_engine` to apply 4 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running `target/debug/my_engine`
+
+thread 'main' (12657491) panicked at /Users/tendinurisherpa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wgpu-30.0.0/src/backend/wgpu_core.rs:1414:26:
+wgpu error: Validation Error
+
+Caused by:
+  In Device::create_render_pipeline, label = 'Render Pipeline'
+    Error matching ShaderStages(VERTEX) shader requirements against the pipeline
+      Location[0] Float32x2 interpolated as Some(Perspective) with sampling Some(Center) is not provided by the previous stage outputs
+        Input is not provided by the earlier stage in the pipeline
+
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'main' (12657491) panicked at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/panicking.rs:225:5:
+panic in a function that cannot unwind
+stack backtrace:
+   0:        0x100cd4704 - std::backtrace_rs::backtrace::libunwind::trace::h8c709fedfe3e7579
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/../../backtrace/src/backtrace/libunwind.rs:117:9
+   1:        0x100cd4704 - std::backtrace_rs::backtrace::trace_unsynchronized::h301468dd5f873f07
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/../../backtrace/src/backtrace/mod.rs:66:14
+   2:        0x100cd4704 - std::sys::backtrace::_print_fmt::hd8f2dd111008fb09
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/sys/backtrace.rs:74:9
+   3:        0x100cd4704 - <std::sys::backtrace::BacktraceLock::print::DisplayBacktrace as core::fmt::Display>::fmt::hbeea7a819b623c65
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/sys/backtrace.rs:44:26
+   4:        0x100ce38a0 - core::fmt::rt::Argument::fmt::h6d78f21e4a415442
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/fmt/rt.rs:152:76
+   5:        0x100ce38a0 - core::fmt::write::hedd53bdb9e87b4cf
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/fmt/mod.rs:1686:22
+   6:        0x100cb88e8 - std::io::default_write_fmt::h37ddaa0445cb524f
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/io/mod.rs:639:11
+   7:        0x100cb88e8 - std::io::Write::write_fmt::hdd87f23e14dc5d26
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/io/mod.rs:1994:13
+   8:        0x100cbecb4 - std::sys::backtrace::BacktraceLock::print::h0afc5f4839e5c28e
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/sys/backtrace.rs:47:25
+   9:        0x100cbecb4 - std::panicking::default_hook::{{closure}}::hb13fd44d9edf00c4
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/panicking.rs:292:27
+  10:        0x100cbebb4 - std::panicking::default_hook::h3b3b0d3cdb46d087
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/panicking.rs:319:9
+  11:        0x100cbf0ac - std::panicking::panic_with_hook::h657ee82e431041f8
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/panicking.rs:825:13
+  12:        0x100cbed8c - std::panicking::panic_handler::{{closure}}::hd0ef6f87b4fd1427
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/panicking.rs:691:13
+  13:        0x100cbcdf8 - std::sys::backtrace::__rust_end_short_backtrace::hbd8bf96e4ee54567
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/sys/backtrace.rs:182:18
+  14:        0x100cb1cb8 - __rustc[16f1505adc47261a]::rust_begin_unwind
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/panicking.rs:689:5
+  15:        0x100d447f4 - core::panicking::panic_nounwind_fmt::runtime::h72486554c89aba67
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/panicking.rs:122:22
+  16:        0x100d447f4 - core::panicking::panic_nounwind_fmt::ha0c5189cd8bf4c83
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs:2432:9
+  17:        0x100d4477c - core::panicking::panic_nounwind::h57b3287bd6acdde6
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/panicking.rs:225:5
+  18:        0x100d448d0 - core::panicking::panic_cannot_unwind::h441ae677ff4cf575
+                               at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/panicking.rs:337:5
+  19:        0x100c3e79c - winit::platform_impl::macos::app_state::ApplicationDelegate::app_did_finish_launching::h490d48b37f2ca464
+                               at /Users/tendinurisherpa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/objc2-0.5.2/src/macros/declare_class.rs:981:25
+  20:        0x1870139bc - <unknown>
+  21:        0x1870a008c - <unknown>
+  22:        0x18709ffd0 - <unknown>
+  23:        0x186fe23d0 - <unknown>
+  24:        0x1888174a4 - <unknown>
+  25:        0x18b4545e8 - <unknown>
+  26:        0x18b454380 - <unknown>
+  27:        0x18b4529c4 - <unknown>
+  28:        0x18b4525d8 - <unknown>
+  29:        0x18883ffbc - <unknown>
+  30:        0x18883fdb4 - <unknown>
+thread caused non-unwinding panic. aborting.
