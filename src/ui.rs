@@ -1,4 +1,4 @@
-use crate::scene::{GridMode, Scene, Selection, ProjectionMode};
+use crate::scene::{Scene, Selection, ProjectionMode};
 use crate::camera::Camera;
 
 pub struct UiState {
@@ -64,17 +64,6 @@ impl UiState {
         let raw_input = self.egui_winit.take_egui_input(window);
 
         let full_output = self.egui_ctx.run_ui(raw_input, |ctx| {
-            egui::Window::new("Editor Camera").show(ctx, |ui| {
-                ui.add(egui::Slider::new(&mut camera.distance, 0.5..=30.0).text("Distance"));
-                if scene.grid_mode == GridMode::ThreeD {
-                    ui.add(egui::Slider::new(&mut camera.rotation_y, -std::f32::consts::PI..=std::f32::consts::PI).text("Yaw"));
-                    ui.add(egui::Slider::new(&mut camera.rotation_x, -1.5..=1.5).text("Pitch"));
-                } else {
-                    ui.label("(2D mode: drag to pan, rotation locked)");
-                }
-                ui.separator();
-                ui.add(egui::Slider::new(&mut camera.fov_y_deg, 10.0..=120.0).text("Zoom (FOV°)"));
-            });
 
             egui::Window::new("Hierarchy").show(ctx, |ui| {
                 if scene.scene_camera.is_some() {
@@ -200,19 +189,6 @@ impl UiState {
                     });
                 }
             }
-
-            egui::Window::new("Scene Settings").show(ctx, |ui| {
-                ui.label("Grid");
-                ui.horizontal(|ui| {
-                    if ui.selectable_label(scene.grid_mode == GridMode::TwoD, "2D").clicked() {
-                        scene.grid_mode = GridMode::TwoD;
-                    }
-                    if ui.selectable_label(scene.grid_mode == GridMode::ThreeD, "3D").clicked() {
-                        scene.grid_mode = GridMode::ThreeD;
-                    }
-                });
-                ui.add(egui::Slider::new(&mut scene.grid_resolution, 0.1..=5.0).text("Grid Resolution"));
-            });
 
             if let Some(tex_id) = game_view_tex_id {
                 egui::Window::new("Game").show(ctx, |ui| {

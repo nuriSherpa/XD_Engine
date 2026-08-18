@@ -6,6 +6,7 @@ mod ui;
 mod app;
 mod scene;
 mod transform;
+mod gizmo;
 
 
 use app::App;

@@ -99,12 +99,6 @@ impl SceneCamera {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum GridMode {
-    TwoD,
-    ThreeD,
-}
-
 #[derive(Clone, Copy, PartialEq)]
 pub enum Selection {
     None,
@@ -116,8 +110,6 @@ pub struct Scene {
     pub objects: Vec<SceneObject>,
     pub selected: Selection,
     pub scene_camera: Option<SceneCamera>, // None = deleted; user can re-add
-    pub grid_mode: GridMode,
-    pub grid_resolution: f32, // spacing between grid lines, world units
 }
 
 impl Scene {
@@ -126,8 +118,6 @@ impl Scene {
             objects: Vec::new(),
             selected: Selection::None,
             scene_camera: Some(SceneCamera::new()),
-            grid_mode: GridMode::ThreeD,
-            grid_resolution: 1.0,
         }
     }
 
@@ -197,47 +187,53 @@ pub fn cube_mesh(center: glam::Vec3, half_size: f32) -> (Vec<Vertex>, Vec<u32>) 
     build_box_mesh(corners)
 }
 
-/// Builds one merged grid mesh centered on `center`, snapped to `step` so it
-/// stays visually stable as it's rebuilt while the camera moves — this is
-/// what gives the "infinite" feel without an actual infinite shader plane.
-/// 3D mode: ground grid on XZ. 2D mode: flat grid on XY (matches the 2D
-/// camera lock, which only pans on X/Y).
-pub fn grid_mesh(mode: GridMode, center: glam::Vec3, half_extent: f32, step: f32, thickness: f32) -> (Vec<Vertex>, Vec<u32>) {
-    let step = step.max(0.05);
-    let mut vertices: Vec<Vertex> = Vec::new();
-    let mut indices: Vec<u32> = Vec::new();
+/// Wireframe frustum for the scene camera, shown like Unity's camera gizmo.
+/// Built by unprojecting the NDC cube corners through the camera's own view_proj.
+pub fn camera_frustum_mesh(cam: &SceneCamera, viewport_aspect: f32, thickness: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let aspect = cam.aspect_override.unwrap_or(viewport_aspect);
 
-    let mut add_line = |a: glam::Vec3, b: glam::Vec3, vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>| {
+    // Cap the far plane just for the gizmo so it doesn't stretch to `far` (100+ units)
+    // and dominate the scene view — Unity does the same visual clamp.
+    let display_far = cam.far.min(cam.near + 15.0);
+    let mut clipped = SceneCamera {
+        transform: cam.transform.clone(),
+        projection: cam.projection,
+        fov_y_deg: cam.fov_y_deg,
+        orthographic_size: cam.orthographic_size,
+        near: cam.near,
+        far: display_far,
+        aspect_override: cam.aspect_override,
+        backface_culling: cam.backface_culling,
+    };
+    let inv = clipped.view_proj(aspect).inverse();
+    let unproject = |x: f32, y: f32, z: f32| inv.project_point3(glam::Vec3::new(x, y, z));
+
+    let near_z = 0.0; // wgpu clip-space z range is 0..1
+    let far_z = 1.0;
+    let n = [
+        unproject(-1.0, -1.0, near_z), unproject(1.0, -1.0, near_z),
+        unproject(1.0, 1.0, near_z),  unproject(-1.0, 1.0, near_z),
+    ];
+    let f = [
+        unproject(-1.0, -1.0, far_z), unproject(1.0, -1.0, far_z),
+        unproject(1.0, 1.0, far_z),  unproject(-1.0, 1.0, far_z),
+    ];
+
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+    let mut add_edge = |a: glam::Vec3, b: glam::Vec3, vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>| {
         let (v, i) = axis_box_mesh(a, b, thickness);
         let base = vertices.len() as u32;
         vertices.extend(v);
         indices.extend(i.into_iter().map(|idx| idx + base));
     };
 
-    let steps = (half_extent / step).ceil() as i32;
-
-    match mode {
-        GridMode::ThreeD => {
-            let cx = (center.x / step).round() * step;
-            let cz = (center.z / step).round() * step;
-            for i in -steps..=steps {
-                let x = cx + i as f32 * step;
-                let z = cz + i as f32 * step;
-                add_line(glam::Vec3::new(x, 0.0, cz - half_extent), glam::Vec3::new(x, 0.0, cz + half_extent), &mut vertices, &mut indices);
-                add_line(glam::Vec3::new(cx - half_extent, 0.0, z), glam::Vec3::new(cx + half_extent, 0.0, z), &mut vertices, &mut indices);
-            }
-        }
-        GridMode::TwoD => {
-            let cx = (center.x / step).round() * step;
-            let cy = (center.y / step).round() * step;
-            for i in -steps..=steps {
-                let x = cx + i as f32 * step;
-                let y = cy + i as f32 * step;
-                add_line(glam::Vec3::new(x, cy - half_extent, 0.0), glam::Vec3::new(x, cy + half_extent, 0.0), &mut vertices, &mut indices);
-                add_line(glam::Vec3::new(cx - half_extent, y, 0.0), glam::Vec3::new(cx + half_extent, y, 0.0), &mut vertices, &mut indices);
-            }
-        }
+    for i in 0..4 {
+        add_edge(n[i], n[(i + 1) % 4], &mut vertices, &mut indices); // near rectangle
+        add_edge(f[i], f[(i + 1) % 4], &mut vertices, &mut indices); // far rectangle
+        add_edge(n[i], f[i], &mut vertices, &mut indices);           // connecting edges
     }
+    let _ = &mut clipped; // silence unused-mut if you don't touch it further
     (vertices, indices)
 }
 

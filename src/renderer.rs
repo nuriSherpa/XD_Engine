@@ -1,7 +1,9 @@
+// file: my_engine/src/renderer.rs
 use wgpu::util::DeviceExt;
 use crate::vertex::Vertex;
 use crate::camera::Camera;
 use crate::scene::{Scene, SceneObject, Selection};
+use crate::vertex::GridVertex;
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -30,6 +32,13 @@ pub struct Renderer {
     game_view_slot_offset: u64,
 
     pub render_pipeline_no_cull: wgpu::RenderPipeline,
+    pub outline_pipeline: wgpu::RenderPipeline,
+
+
+    pub grid_pipeline: wgpu::RenderPipeline,
+    pub grid_vertex_buffer: wgpu::Buffer,
+    pub grid_uniform_buffer: wgpu::Buffer,
+    pub grid_bind_group: wgpu::BindGroup,
 }
 
 impl Renderer {
@@ -200,6 +209,144 @@ impl Renderer {
         cache: None,
     });
 
+        let outline_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Outline Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader_outline.wgsl").into()),
+        });
+
+        let outline_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Outline Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &outline_shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::layout()],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &outline_shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            // Cull FRONT faces so only the expanded back-faces render —
+            // that ring is exactly the outline silhouette.
+            primitive: wgpu::PrimitiveState { cull_mode: Some(wgpu::Face::Front), ..Default::default() },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+
+    
+
+            // --- Infinite grid ---
+        let grid_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Grid Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader_grid.wgsl").into()),
+        });
+
+        #[repr(C)]
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        struct GridUniform {
+            view_proj: [[f32; 4]; 4],
+            camera_pos: [f32; 4],
+            params: [f32; 4],
+        }
+
+        let grid_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Grid Uniform Buffer"),
+            size: std::mem::size_of::<GridUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let grid_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Grid Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        let grid_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Grid Bind Group"),
+            layout: &grid_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: grid_uniform_buffer.as_entire_binding(),
+            }],
+        });
+
+        let grid_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Grid Pipeline Layout"),
+            bind_group_layouts: &[Some(&grid_bind_group_layout)],
+            immediate_size: 0,
+        });
+
+        let grid_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Grid Pipeline"),
+            layout: Some(&grid_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &grid_shader,
+                entry_point: Some("vs_main"),
+                buffers: &[GridVertex::layout()],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &grid_shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: Some(false),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+
+        let s = 2000.0f32;
+        let grid_verts = [
+            GridVertex { position: [-s, 0.0, -s] },
+            GridVertex { position: [ s, 0.0, -s] },
+            GridVertex { position: [ s, 0.0,  s] },
+            GridVertex { position: [-s, 0.0, -s] },
+            GridVertex { position: [ s, 0.0,  s] },
+            GridVertex { position: [-s, 0.0,  s] },
+        ];
+        let grid_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Vertex Buffer"),
+            contents: bytemuck::cast_slice(&grid_verts),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
         // --- Game view: offscreen render target the Game window displays ---
         let game_view_size = (320u32, 180u32);
         let game_view_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -230,10 +377,12 @@ impl Renderer {
             surface, device, queue, surface_config,
             render_pipeline,
             render_pipeline_no_cull,
+            outline_pipeline,
             uniform_buffer, uniform_stride, bind_group, max_draws,
             depth_view,
             game_view_texture, game_view_view, game_view_depth, game_view_size,
             game_view_slot_offset,
+            grid_pipeline, grid_vertex_buffer, grid_uniform_buffer, grid_bind_group,
         }
     }
 
@@ -276,15 +425,16 @@ impl Renderer {
         }
     }
 
-    pub fn draw_scene_view(
+        pub fn draw_scene_view(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         camera: &Camera,
         scene: &Scene,
-        grid: Option<&SceneObject>,
         camera_icon: Option<&SceneObject>,
+        camera_frustum: Option<&SceneObject>,
         gizmo: Option<&[SceneObject]>,
+        transform_gizmo: Option<(&[SceneObject], &[[f32; 4]])>,
     ) {
         let view_proj = camera.view_proj(self.aspect());
         let mut slot = 0u64;
@@ -309,18 +459,71 @@ impl Renderer {
         });
         render_pass.set_pipeline(&self.render_pipeline);
 
-        if let Some(grid_obj) = grid {
-            self.render_objects_pass(&mut render_pass, view_proj, std::iter::once((grid_obj, [0.35, 0.35, 0.38, 1.0])), &mut slot);
+               #[repr(C)]
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        struct GridUniform { view_proj: [[f32; 4]; 4], camera_pos: [f32; 4], params: [f32; 4] }
+
+        let eye = camera.eye();
+        let dist = camera.distance.max(0.05);
+
+        // Adaptive cell size: pick the nearest power-of-10 step so grid density
+        // stays readable whether you're at distance 2 or distance 5000.
+        let cell_size = 10f32.powf((dist / 8.0).max(0.01).log10().round());
+        let fade_far = (dist * 4.0).max(cell_size * 20.0);
+        let fade_near = fade_far * 0.4;
+
+        // Recenter+rescale the quad around the camera target each frame so it
+        // always covers the visible area, however far you zoom — snapped to
+        // half the cell size to avoid visible popping as it moves.
+        let snap = cell_size * 0.5;
+        let cx = (camera.target.x / snap).round() * snap;
+        let cz = (camera.target.z / snap).round() * snap;
+        let half = (dist * 8.0).max(200.0);
+        let grid_verts = [
+            crate::vertex::GridVertex { position: [cx - half, 0.0, cz - half] },
+            crate::vertex::GridVertex { position: [cx + half, 0.0, cz - half] },
+            crate::vertex::GridVertex { position: [cx + half, 0.0, cz + half] },
+            crate::vertex::GridVertex { position: [cx - half, 0.0, cz - half] },
+            crate::vertex::GridVertex { position: [cx + half, 0.0, cz + half] },
+            crate::vertex::GridVertex { position: [cx - half, 0.0, cz + half] },
+        ];
+        self.queue.write_buffer(&self.grid_vertex_buffer, 0, bytemuck::cast_slice(&grid_verts));
+
+        let grid_data = GridUniform {
+            view_proj: view_proj.to_cols_array_2d(),
+            camera_pos: [eye.x, eye.y, eye.z, 0.0],
+            params: [cell_size, fade_near, fade_far, 0.0],
+        };
+        self.queue.write_buffer(&self.grid_uniform_buffer, 0, bytemuck::bytes_of(&grid_data));
+        render_pass.set_pipeline(&self.grid_pipeline);
+        render_pass.set_bind_group(0, &self.grid_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.grid_vertex_buffer.slice(..));
+        render_pass.draw(0..6, 0..1);
+
+        render_pass.set_pipeline(&self.render_pipeline);
+
+        // Outline pass: draw the selected object's expanded silhouette first.
+        if let Selection::Object(i) = scene.selected {
+            if let Some(obj) = scene.objects.get(i) {
+                render_pass.set_pipeline(&self.outline_pipeline);
+                self.render_objects_pass(
+                    &mut render_pass, view_proj,
+                    std::iter::once((obj, [1.0, 0.85, 0.2, 1.0])), // golden yellow
+                    &mut slot,
+                );
+                render_pass.set_pipeline(&self.render_pipeline);
+            }
         }
 
-        let obj_iter = scene.objects.iter().enumerate().map(|(i, o)| {
-            let color = if scene.selected == Selection::Object(i) { [1.0, 0.6, 0.1, 0.35] } else { [0.0, 0.0, 0.0, 0.0] };
-            (o, color)
-        });
+        let obj_iter = scene.objects.iter().map(|o| (o, [0.0, 0.0, 0.0, 0.0]));
         self.render_objects_pass(&mut render_pass, view_proj, obj_iter, &mut slot);
 
         if let Some(cam_obj) = camera_icon {
             self.render_objects_pass(&mut render_pass, view_proj, std::iter::once((cam_obj, [0.2, 0.8, 1.0, 1.0])), &mut slot);
+        }
+
+        if let Some(frustum) = camera_frustum {
+            self.render_objects_pass(&mut render_pass, view_proj, std::iter::once((frustum, [1.0, 0.85, 0.2, 1.0])), &mut slot);
         }
 
         if let Some(lines) = gizmo {
@@ -329,6 +532,12 @@ impl Renderer {
                 (l, color)
             });
             self.render_objects_pass(&mut render_pass, view_proj, colored, &mut slot);
+        }
+
+        // ADD THIS BLOCK HERE - right after the camera axis lines block
+        if let Some((objs, colors)) = transform_gizmo {
+            let iter = objs.iter().zip(colors.iter().copied());
+            self.render_objects_pass(&mut render_pass, view_proj, iter, &mut slot);
         }
     }
 

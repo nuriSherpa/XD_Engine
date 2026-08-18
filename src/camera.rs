@@ -39,11 +39,16 @@ impl Camera {
 
     pub fn view_proj(&self, aspect: f32) -> glam::Mat4 {
         let view = glam::Mat4::look_at_rh(self.eye(), self.target, self.up);
+        let dynamic_far = self.far.max(self.distance * 6.0 + 100.0);
+        // Scale near plane with distance too, keeping far/near ratio bounded —
+        // this is what actually prevents depth-buffer precision flicker at
+        // large zoom levels (fixed near + growing far is the bad combo).
+        let dynamic_near = self.near.max(self.distance * 0.001);
         let proj = glam::Mat4::perspective_rh(
             self.fov_y_deg.to_radians(),
             aspect,
-            self.near,
-            self.far,
+            dynamic_near,
+            dynamic_far,
         );
         proj * view
     }
